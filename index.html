@@ -8,6 +8,7 @@
 :root{
   --bg:#f4f5f7;--card:#ffffff;--text:#1c1e21;--muted:#6b7280;--border:#333;
   --amarillo:#FFFF00;--verde:#92D050;--accent:#2563eb;--accent-d:#1d4ed8;--danger:#dc2626;
+  --pfs:6px;--pcolw:46px;
   box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);
 }
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--bg:#15171b;--card:#1e2126;--text:#e8e9ec;--muted:#9aa0a8;}}
@@ -46,46 +47,86 @@ input.num{width:100%;padding:3px;border:1px solid #bbb;border-radius:4px;backgro
 .addrow input[type=text]{width:60%;padding:6px 8px;border-radius:6px;border:1px solid #bbb;background:var(--card);color:var(--text);}
 .meta{font-size:11px;color:var(--muted);padding:6px 10px;text-align:center;}
 select{padding:6px 9px;border-radius:7px;border:1px solid #bbb;background:var(--card);color:var(--text);}
+.vprint-only{display:none;}
+.vgrid{display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr;gap:8px;box-sizing:border-box;}
+.vcard{border:1px solid #000;padding:4px 6px;box-sizing:border-box;overflow:hidden;}
+.vtitle{font-weight:bold;font-size:calc(var(--vfs,10px) + 1px);margin-bottom:2px;display:flex;justify-content:space-between;flex-wrap:wrap;}
+.vfecha{font-weight:normal;}
+.vcols2{display:flex;gap:6px;}
+.vcol{flex:1;min-width:0;}
+.vsec{margin-bottom:2px;}
+.vsechead{background:var(--amarillo);font-weight:bold;font-size:var(--vfs,10px);padding:1px 3px;text-align:center;line-height:1.2;}
+.vrow{display:flex;justify-content:space-between;font-size:var(--vfs,10px);padding:0 2px;border-bottom:1px dotted #999;line-height:1.2;white-space:nowrap;overflow:hidden;}
 @media print{
-  @page{size:landscape;margin:8mm;}
-  body{background:#fff;color:#000;font-size:7px;}
+  .vprint-only{display:block;page-break-before:always;}
+  .vsechead{-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+  body.print-almacen #vitrinaPrintBlock{display:none!important;}
+  body.print-vitrina #almacenPrintBlock{display:none!important;}
+  body.print-vitrina .vprint-only{page-break-before:auto;}
+}
+@media print{
+  @page{size:A4 landscape;margin:8mm;}
+  body{background:#fff;color:#000;font-size:var(--pfs);}
   header,.no-print{display:none!important;}
   .wrap{max-width:none;padding:0;}
-  .productos-bar{padding:2px;font-size:9px;margin-top:0;}
+  .productos-bar{padding:1px;font-size:calc(var(--pfs) + 2px);margin-top:0;}
   .section{border:none;margin:0;}
   tr{page-break-inside:avoid;}
   thead{display:table-header-group;}
-  th,td{border:1px solid #000;color:#000;padding:1px 2px;font-size:7px;line-height:1.1;}
-  th{padding:2px;}
+  th,td{border:1px solid #000;color:#000;padding:0px 2px!important;font-size:var(--pfs)!important;line-height:1.05;}
+  col.datacol{width:var(--pcolw)!important;}
+  col.prodcol{width:calc(var(--pcolw) * 2.4)!important;}
   input.num{border:none;background:transparent;color:#000;font-weight:inherit;text-align:center;}
   td.stockcell{background:#fffde7!important;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
   th.cat,th.stockh{background:#FFFF00!important;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
   th.ingh,th.salh{background:#92D050!important;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
 }
 </style>
+<style id="dynPage">@page{size:A4 landscape;margin:8mm;}</style>
 </head>
 <body>
 <header><div class="wrap topbar" style="display:block;">
   <h1>📦 CARDEX ALMACEN 2026</h1>
   <div class="sub" id="lastInfo">—</div>
   <div class="tools no-print" style="margin-top:10px;">
-    <select id="tipoSelect">
-      <option value="almacen">Kardex de Almacén</option>
-      <option value="_soon" disabled>+ Otros kardex (próximamente)</option>
-    </select>
     <button class="btn secondary" id="btnDia" onclick="agregarDia()">+ Agregar día</button>
     <button class="btn secondary" onclick="quitarDia()">Quitar último día</button>
     <button class="btn secondary" onclick="cerrarKardex()">Cerrar e iniciar nuevo</button>
     <button class="btn" onclick="window.print()">🖨️ Imprimir</button>
   </div>
+  <div class="tools no-print" style="margin-top:8px;">
+    <label class="sub">Imprimir <select id="printTarget" onchange="setPrintTarget(this.value)">
+      <option value="ambos">Ambos</option>
+      <option value="almacen">Solo Kardex de Almacén</option>
+      <option value="vitrina">Solo Control de Vitrina</option>
+    </select></label>
+  </div>
+  <div class="tools no-print" style="margin-top:8px;">
+    <label class="sub">Letra impresión <input type="range" id="rngFont" min="4" max="10" step="0.5" oninput="setPref('pfs',this.value)"></label>
+    <label class="sub">Tamaño de celda <input type="range" id="rngCell" min="32" max="70" step="1" oninput="setPref('pcolw',this.value)"></label>
+  </div>
 </div></header>
 
 <div class="wrap">
-  <div class="productos-bar">CARDEX ALAMCEN 2026</div>
-  <div id="sections"></div>
+  <div id="almacenPrintBlock">
+    <div class="productos-bar">PRODUCTOS</div>
+    <div id="sections"></div>
+  </div>
   <div class="no-print" style="margin-top:16px;text-align:center;">
     <button class="btn secondary" onclick="addSection()">+ Agregar sección</button>
     <button class="btn danger" style="margin-left:8px" onclick="resetAll()">Restablecer todo</button>
+  </div>
+
+  <div id="vitrinaPrintBlock">
+    <h1 class="no-print" style="margin-top:34px;">🧃 CONTROL DIARIO DE VITRINA</h1>
+    <div class="sub no-print">Se imprime como 4 plantillas por hoja, para llenar a mano</div>
+    <div class="productos-bar no-print">VITRINA · BEBIDAS · ASEOS PERSONALES</div>
+    <div id="vprint" class="vprint-only"></div>
+  </div>
+  <div id="vsections" class="no-print"></div>
+  <div class="no-print" style="margin-top:10px;text-align:center;">
+    <button class="btn secondary" onclick="vAddSection()">+ Agregar sección</button>
+    <button class="btn danger" style="margin-left:8px" onclick="vResetAll()">Restablecer vitrina</button>
   </div>
 </div>
 
@@ -102,6 +143,137 @@ const MAX_DIAS = 4;
 const KEY = "kardexAlmacen_v2";
 let uidc = 1;
 const uid = ()=> "id"+(uidc++)+"_"+Math.random().toString(36).slice(2,7);
+
+const VDEFAULTS = {
+  sections: [
+    {name:"VITRINA", products:["Marshmellows","Gomitas","Pinguino","Wafer","Chocman Azul","Chocman Blanco","Trikis","Salticas","Trident","Invite","Reyenito","Mentas","Margarita","Morochas","Rellenitas","Soda V","Keke"]},
+    {name:"BEBIDAS", products:["Coca p.","Inca p.","Guarana","Guaranita","Maltin","Corona","San Juan","Pilsen lata","Trigo lata","Agua S/G","Agua C/G","Jugos"]},
+    {name:"ASEOS PERSONALES", products:["Cepillo","Pasta dental","H & S","Pantene","Jabon","Afeitador","Desodorante","Bloqueador","Repelente","Peine","Encendedor"]}
+  ]
+};
+const VKEY = "kardexVitrina_v1";
+function vBuildDefault(){
+  return { sections: VDEFAULTS.sections.map(s=>({id:uid(), name:s.name, products:s.products.map(p=>({id:uid(), name:p}))})) };
+}
+function vLoad(){
+  try{ const raw = localStorage.getItem(VKEY); if(raw){ const p=JSON.parse(raw); if(p.sections) return p; } }catch(e){}
+  return vBuildDefault();
+}
+function vSave(){ try{ localStorage.setItem(VKEY, JSON.stringify(vdata)); }catch(e){} }
+let vdata = vLoad();
+
+function vRenderEdit(){
+  const el = document.getElementById("vsections");
+  el.innerHTML = vdata.sections.map(sec=>`
+    <div class="section" style="margin-top:12px;">
+      <div class="section-tools"><button class="btn danger" onclick="vDeleteSection('${sec.id}')">Eliminar sección</button></div>
+      <table><colgroup><col class="prodcol"><col></colgroup>
+      <thead><tr><th class="cat" colspan="2">${sec.name}</th></tr></thead>
+      <tbody>
+      ${sec.products.map(p=>`<tr><td class="prod">${p.name}</td><td style="width:60px;"><button class="btn danger" onclick="vDeleteProduct('${sec.id}','${p.id}')">✕</button></td></tr>`).join("")}
+      <tr><td colspan="2"><input type="text" id="vnp_${sec.id}" placeholder="Nuevo producto...">
+        <button class="btn" onclick="vAddProduct('${sec.id}')">+ Agregar producto</button></td></tr>
+      </tbody></table>
+    </div>`).join("");
+  vRenderPrint();
+}
+function splitSections(sections){
+  const withLines = sections.map(s=>({id:s.id, name:s.name, products:s.products, lines:1+s.products.length}));
+  const sorted = [...withLines].sort((a,b)=>b.lines-a.lines);
+  let leftLines=0, rightLines=0, left=[], right=[];
+  sorted.forEach(s=>{ if(leftLines<=rightLines){ left.push(s); leftLines+=s.lines; } else { right.push(s); rightLines+=s.lines; } });
+  const order = sections.map(s=>s.id);
+  left.sort((a,b)=>order.indexOf(a.id)-order.indexOf(b.id));
+  right.sort((a,b)=>order.indexOf(a.id)-order.indexOf(b.id));
+  return { left, right, maxLines: Math.max(leftLines,rightLines) };
+}
+function vColHtml(arr){
+  return arr.map(sec=>`<div class="vsec">
+    <div class="vsechead">${sec.name}</div>
+    ${sec.products.map(p=>`<div class="vrow"><span>${p.name}</span><span>______</span></div>`).join("")}
+  </div>`).join("");
+}
+function vCard(){
+  const {left,right} = splitSections(vdata.sections);
+  return `<div class="vcard">
+    <div class="vtitle">CONTROL DIARIO DE PRODUCTOS <span class="vfecha">FECHA:__________</span></div>
+    <div class="vcols2"><div class="vcol">${vColHtml(left)}</div><div class="vcol">${vColHtml(right)}</div></div>
+  </div>`;
+}
+const MM2PX = 96/25.4;
+function vitrinaPageDims(){
+  const t = (document.getElementById('printTarget')||{}).value || 'ambos';
+  if(t==='vitrina') return { w:(210-16)*MM2PX, h:(297-16)*MM2PX }; // vertical
+  return { w:(297-16)*MM2PX, h:(210-16)*MM2PX }; // horizontal (comparte hoja con almacén)
+}
+function autoFitVitrina(){
+  const wrap = document.getElementById("vprint");
+  const grid = wrap.querySelector(".vgrid");
+  if(!grid) return;
+  const {w:pw, h:ph} = vitrinaPageDims();
+  const targetH = ph*0.98; // margen de seguridad para que nunca desborde a una 2da hoja
+  const GAP=8, PAD_BORDER=10;
+  const cardH = (ph-GAP)/2;
+  const {maxLines} = splitSections(vdata.sections);
+  const ROW_FACTOR = 1.3, TITLE_LINES = 1.4;
+  let fs = (cardH-PAD_BORDER)/((maxLines+TITLE_LINES)*ROW_FACTOR);
+  fs = Math.max(4, Math.min(30, fs));
+  document.documentElement.style.setProperty('--vfs', fs+'px');
+  const prevCss = wrap.getAttribute("style")||"";
+  wrap.style.cssText = "position:fixed;left:-99999px;top:0;display:block;width:"+pw+"px;";
+  for(let i=0;i<6;i++){
+    const measured = grid.scrollHeight;
+    if(measured<=0) break;
+    const scale = targetH/measured;
+    if(scale>=1 && scale<1.03) break;
+    fs = Math.max(4, Math.min(30, fs*scale));
+    document.documentElement.style.setProperty('--vfs', fs+'px');
+  }
+  wrap.setAttribute("style", prevCss);
+}
+function setPageOrientation(v){
+  const orientation = v==='vitrina' ? 'portrait' : 'landscape';
+  document.getElementById('dynPage').textContent = '@page{size:A4 '+orientation+';margin:8mm;}';
+}
+function setPrintTarget(v){
+  document.body.classList.remove('print-almacen','print-vitrina');
+  if(v==='almacen') document.body.classList.add('print-almacen');
+  else if(v==='vitrina') document.body.classList.add('print-vitrina');
+  try{ localStorage.setItem('kardexPrintTarget', v); }catch(e){}
+  setPageOrientation(v);
+  autoFitVitrina();
+}
+function loadPrintTarget(){
+  let v='ambos';
+  try{ v = localStorage.getItem('kardexPrintTarget') || 'ambos'; }catch(e){}
+  document.getElementById('printTarget').value = v;
+  setPrintTarget(v);
+}
+function vRenderPrint(){
+  document.getElementById("vprint").innerHTML = `<div class="vgrid">${vCard()}${vCard()}${vCard()}${vCard()}</div>`;
+  autoFitVitrina();
+}
+function vAddProduct(secId){
+  const inp = document.getElementById("vnp_"+secId); const name = inp.value.trim(); if(!name) return;
+  const sec = vdata.sections.find(s=>s.id===secId); sec.products.push({id:uid(), name});
+  vSave(); vRenderEdit();
+}
+function vDeleteProduct(secId,prodId){
+  const sec = vdata.sections.find(s=>s.id===secId); sec.products = sec.products.filter(p=>p.id!==prodId);
+  vSave(); vRenderEdit();
+}
+function vAddSection(){
+  const name = prompt("Nombre de la nueva sección:"); if(!name) return;
+  vdata.sections.push({id:uid(), name:name.trim().toUpperCase(), products:[]}); vSave(); vRenderEdit();
+}
+function vDeleteSection(secId){
+  if(!confirm("¿Eliminar esta sección y todos sus productos?")) return;
+  vdata.sections = vdata.sections.filter(s=>s.id!==secId); vSave(); vRenderEdit();
+}
+function vResetAll(){
+  if(!confirm("Esto borra todo y vuelve a la lista original de la vitrina. ¿Continuar?")) return;
+  vdata = vBuildDefault(); vSave(); vRenderEdit();
+}
 
 function buildDefault(){
   return {
@@ -125,6 +297,24 @@ function load(){
 function save(){ try{ localStorage.setItem(KEY, JSON.stringify(data)); }catch(e){ console.error(e); } }
 let data = load();
 const n = v => isFinite(v)? v : 0;
+
+const PKEY = "kardexPrintPrefs_v1";
+function loadPrefs(){
+  try{ const raw = localStorage.getItem(PKEY); if(raw){ const p=JSON.parse(raw); if(p.pfs&&p.pcolw) return p; } }catch(e){}
+  return {pfs:6, pcolw:46};
+}
+let prefs = loadPrefs();
+function applyPrefs(){
+  document.documentElement.style.setProperty('--pfs', prefs.pfs+'px');
+  document.documentElement.style.setProperty('--pcolw', prefs.pcolw+'px');
+  document.getElementById('rngFont').value = prefs.pfs;
+  document.getElementById('rngCell').value = prefs.pcolw;
+}
+function setPref(key,val){
+  prefs[key] = Number(val);
+  try{ localStorage.setItem(PKEY, JSON.stringify(prefs)); }catch(e){}
+  applyPrefs();
+}
 
 function stockEnDia(p, idx){
   let s = n(p.stockInicial);
@@ -230,7 +420,10 @@ function resetAll(){
   if(!confirm("Esto borra todo y vuelve a la lista original. ¿Continuar?")) return;
   data = buildDefault(); save(); render();
 }
+applyPrefs();
+loadPrintTarget();
 render();
+vRenderEdit();
 </script>
 </body>
 </html>
