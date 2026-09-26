@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Kardex de Almacén</title>
+<style>
+:root{
+  --bg:#f4f5f7;--card:#ffffff;--text:#1c1e21;--muted:#6b7280;--border:#333;
+  --amarillo:#FFFF00;--verde:#92D050;--accent:#2563eb;--accent-d:#1d4ed8;--danger:#dc2626;
+  box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--bg:#15171b;--card:#1e2126;--text:#e8e9ec;--muted:#9aa0a8;}}
+:root[data-theme="dark"]{--bg:#15171b;--card:#1e2126;--text:#e8e9ec;--muted:#9aa0a8;}
+html{scroll-padding-top:env(safe-area-inset-top,0px);}
+*{box-sizing:border-box;}
+body{margin:0;background:var(--bg);color:var(--text);font-family:"Comic Sans MS","Comic Sans",Arial,sans-serif;}
+header{position:sticky;top:0;padding-top:calc(12px + env(safe-area-inset-top,0px));background:var(--card);border-bottom:1px solid #ccc;z-index:10;}
+.wrap{max-width:1100px;margin:0 auto;padding:0 14px 40px;}
+.topbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between;padding-bottom:12px;}
+h1{font-size:19px;margin:0;text-align:center;}
+.sub{color:var(--muted);font-size:12px;margin-top:2px;text-align:center;}
+.btn{border:none;border-radius:7px;padding:8px 12px;font-size:13px;cursor:pointer;background:var(--accent);color:#fff;}
+.btn:hover{background:var(--accent-d);}
+.btn.secondary{background:transparent;color:var(--accent);border:1px solid var(--accent);}
+.btn.danger{background:transparent;color:var(--danger);border:1px solid var(--danger);padding:4px 8px;font-size:11px;}
+.btn.danger:hover{background:var(--danger);color:#fff;}
+.btn:disabled{opacity:.4;cursor:not-allowed;}
+.tools{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;}
+.productos-bar{background:var(--verde);color:#000;font-weight:bold;text-align:center;padding:6px;border:1px solid var(--border);margin-top:10px;}
+.section{background:var(--card);border:1px solid #999;margin-top:16px;}
+.section-tools{display:flex;justify-content:flex-end;padding:4px 8px;gap:6px;}
+.overflow-x{overflow-x:auto;}
+table{width:100%;border-collapse:collapse;table-layout:fixed;}
+th,td{border:1px solid var(--border);padding:5px 4px;font-size:12px;text-align:center;}
+col.prodcol{width:180px;}
+col.datacol{width:64px;}
+th.cat{background:var(--amarillo);color:#000;font-weight:bold;text-align:left;padding-left:8px;}
+th.stockh{background:var(--amarillo);color:#000;font-weight:bold;}
+th.ingh,th.salh{background:var(--verde);color:#000;font-weight:bold;}
+td.prod{text-align:left;}
+td.stockcell{font-weight:bold;background:#fffde7;}
+:root[data-theme="dark"] td.stockcell{background:#3a3a1a;color:#fff;}
+input.num{width:100%;padding:3px;border:1px solid #bbb;border-radius:4px;background:var(--card);color:var(--text);text-align:center;font-size:12px;}
+.addrow td{text-align:left;}
+.addrow input[type=text]{width:60%;padding:6px 8px;border-radius:6px;border:1px solid #bbb;background:var(--card);color:var(--text);}
+.meta{font-size:11px;color:var(--muted);padding:6px 10px;text-align:center;}
+select{padding:6px 9px;border-radius:7px;border:1px solid #bbb;background:var(--card);color:var(--text);}
+@media print{
+  @page{size:landscape;margin:8mm;}
+  body{background:#fff;color:#000;font-size:7px;}
+  header,.no-print{display:none!important;}
+  .wrap{max-width:none;padding:0;}
+  .productos-bar{padding:2px;font-size:9px;margin-top:0;}
+  .section{border:none;margin:0;}
+  tr{page-break-inside:avoid;}
+  thead{display:table-header-group;}
+  th,td{border:1px solid #000;color:#000;padding:1px 2px;font-size:7px;line-height:1.1;}
+  th{padding:2px;}
+  input.num{border:none;background:transparent;color:#000;font-weight:inherit;text-align:center;}
+  td.stockcell{background:#fffde7!important;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+  th.cat,th.stockh{background:#FFFF00!important;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+  th.ingh,th.salh{background:#92D050!important;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+}
+</style>
+</head>
+<body>
+<header><div class="wrap topbar" style="display:block;">
+  <h1>📦 CARDEX ALMACEN 2026</h1>
+  <div class="sub" id="lastInfo">—</div>
+  <div class="tools no-print" style="margin-top:10px;">
+    <select id="tipoSelect">
+      <option value="almacen">Kardex de Almacén</option>
+      <option value="_soon" disabled>+ Otros kardex (próximamente)</option>
+    </select>
+    <button class="btn secondary" id="btnDia" onclick="agregarDia()">+ Agregar día</button>
+    <button class="btn secondary" onclick="quitarDia()">Quitar último día</button>
+    <button class="btn secondary" onclick="cerrarKardex()">Cerrar e iniciar nuevo</button>
+    <button class="btn" onclick="window.print()">🖨️ Imprimir</button>
+  </div>
+</div></header>
+
+<div class="wrap">
+  <div class="productos-bar">CARDEX ALAMCEN 2026</div>
+  <div id="sections"></div>
+  <div class="no-print" style="margin-top:16px;text-align:center;">
+    <button class="btn secondary" onclick="addSection()">+ Agregar sección</button>
+    <button class="btn danger" style="margin-left:8px" onclick="resetAll()">Restablecer todo</button>
+  </div>
+</div>
+
+<script>
+const DEFAULTS = {
+  sections: [
+    {name:"BEBIDAS", products:["AGUA 2.5 Lt","AGUA PERSONAL C/GAS","AGUA PERSONAL S/GAS","COCA COLA 1.5 Lt","COCA COLA 2.5 Lt","COCA COLA 600ml","CORONA","GUARANA","INKA KOLA 1.5Lt","INKA KOLA 2.5Lt","INKA KOLA 600ml","MALTIN POWER","PILSEN LATA","SAN JUAN LATA","CUSQUEÑA LATA"]},
+    {name:"LIMPIEZA", products:["AMBIENTADOR DKASA","AMBIENTADOR SPRAY","BAYGON","BOLSA DE BASURA GR. 26X40","BOLSA DE BASURA PEQ. 20x30","CORTINA DE BAÑO","CLOROX EN POLVO","DETERGENTE","ESPONJA LIMPIEZA","ESPONJA BRILLADOR","ESPONJA LAVAPLATOS","GUANTES LIMPIEZA","JABONCITOS","LAVA VAJILLA","LEJIA","LIMPIA SARRO","PAÑOS AMARILLOS","PAPEL HIGIENICO","ESCOBAS","ESPIRAL TOKAI","SUAVITEL","TOKAI","TRAPEADORES"]},
+    {name:"VÍVERES", products:["ACEITE","ACEITE DE COCO","AGUARDIENTE","AJINOMOTO","AJONJOLI","ALGARROBINA","ARROZ","AZUCAR RUBIA","BOLSAS 4X8","BOLSAS 10X15","BOLSAS 16X19","BOLSAS 5X32","BOLSAS 6X12","BOLSAS 8X12","CANELA","CABELLO DE ANGEL","CAFÉ DON CAFÉ","CAFÉ OROVERDE","CEREAL TRIGO","CHAMPIÑONES","CHUÑO","CREMA DE COCO","CREMA DE LECHE","ESCENCIA DE VAINILLA","FIDEO TORNILLO","FIDEO SPAGUETTI","FILETE","HARINA","HUEVOS","JARABE DE GOMA","JIGGER MENTA","JUGO DURAZNO 1 LT","KETCHUP","LECHE CONDENSADA","LECHE IDEAL","MAGGI CARNE","MAGGI GALLINA","MAGGI PESCADO","MAIZ CANCHA","MANJAR","MANTEQUILLA","MAYONESA","MERMELADA","MIEL","MOSTAZA","OSTION","PAPAS AL HILO","PAPEL TOALLA","PASTA DE TOMATE","QUESO PARMESANO","SAL","SALSA TAMARINDO","SERVILLETA CORTADA","SILLAO","TÉ ANIS","TÉ CANELA Y CLAVO","TÉ MANZANILLA","TÉ PURO","VINAGRE BLANCO","VINAGRE ROJO","RON","PISCO","VINO","VINO BLANCO"]},
+    {name:"OTROS", products:["ALCOHOL","CANASTITA CARTON","CARTILLA","COMANDA","FOCOS","FOSFORO","GUANTES COCINA L","GUANTES COCINA S","HAMACAS","PALITOS BROCHETAS","SORBETE","TAPERS DESCARTABLES","TOCAS","VASOS DESCARTABLES","COMIDA DE GATO","CROQUETAS GAVIOTA","PATE BRUNA","PATE GAVIOTA","ARENA DE GATO","PLUMERO","SULFATO DE ALUMINIO","SODA CAUSTICA","CLORO PISCINA","PILA AA","PILA AAA","PILA THERMA","BORRADOR","RESALTADOR","LAPICEROS","SOQUET","MICAS","MONDADIENTES","TIQUETERA","TIJERAS","MANGO/ ESCOBA","TACHO","BOYA DE ACCESO","PERNOS","PARACETAMOL","TAPAS","PINES DE DUCHA"]}
+  ]
+};
+const MAX_DIAS = 4;
+const KEY = "kardexAlmacen_v2";
+let uidc = 1;
+const uid = ()=> "id"+(uidc++)+"_"+Math.random().toString(36).slice(2,7);
+
+function buildDefault(){
+  return {
+    numDias:0, lastCierre:null,
+    sections: DEFAULTS.sections.map(s=>({
+      id: uid(), name: s.name,
+      products: s.products.map(p=>({id:uid(), name:p, stockInicial:0, dias:[]}))
+    }))
+  };
+}
+function load(){
+  try{
+    const raw = localStorage.getItem(KEY);
+    if(!raw) return buildDefault();
+    const parsed = JSON.parse(raw);
+    if(!parsed.sections) return buildDefault();
+    if(typeof parsed.numDias!=="number") parsed.numDias=0;
+    return parsed;
+  }catch(e){ return buildDefault(); }
+}
+function save(){ try{ localStorage.setItem(KEY, JSON.stringify(data)); }catch(e){ console.error(e); } }
+let data = load();
+const n = v => isFinite(v)? v : 0;
+
+function stockEnDia(p, idx){
+  let s = n(p.stockInicial);
+  for(let i=0;i<=idx;i++){ s += n(p.dias[i].ingreso) - n(p.dias[i].salidas); }
+  return s;
+}
+function stockFinal(p){ return p.dias.length? stockEnDia(p,p.dias.length-1) : n(p.stockInicial); }
+
+function headerRow(sec){
+  let h = `<th class="prodcol" style="background:${'var(--verde)'}">${sec.name}</th><th class="stockh">STOCK=</th>`;
+  for(let i=0;i<data.numDias;i++){
+    h += `<th class="ingh">INGRESO</th><th class="salh">SALIDAS</th><th class="stockh">STOCK=</th>`;
+  }
+  return `<tr>${h}</tr>`;
+}
+function colgroup(){
+  let c = `<col class="prodcol"><col class="datacol">`;
+  for(let i=0;i<data.numDias;i++) c += `<col class="datacol"><col class="datacol"><col class="datacol">`;
+  return `<colgroup>${c}</colgroup>`;
+}
+function blank(v){ return v? v : ''; }
+function productRow(sec,p){
+  let cells = `<td class="prod">${p.name}</td><td class="stockcell">${blank(n(p.stockInicial))}</td>`;
+  for(let i=0;i<data.numDias;i++){
+    const d = p.dias[i] || {ingreso:0,salidas:0};
+    cells += `<td><input class="num" type="number" value="${blank(n(d.ingreso))}" oninput="upd('${sec.id}','${p.id}',${i},'ingreso',this.value)"></td>
+      <td><input class="num" type="number" value="${blank(n(d.salidas))}" oninput="upd('${sec.id}','${p.id}',${i},'salidas',this.value)"></td>
+      <td class="stockcell">${blank(stockEnDia(p,i))}</td>`;
+  }
+  return `<tr><td class="no-print" style="width:26px;border:none;"><button class="btn danger" onclick="deleteProduct('${sec.id}','${p.id}')">✕</button></td>${cells}</tr>`;
+}
+function render(){
+  const el = document.getElementById("sections");
+  el.innerHTML = "";
+  document.getElementById("btnDia").disabled = data.numDias>=MAX_DIAS;
+  data.sections.forEach(sec=>{
+    const div = document.createElement("div");
+    div.className = "section";
+    const rows = sec.products.map(p=>productRow(sec,p)).join("");
+    div.innerHTML = `
+      <div class="section-tools no-print">
+        <button class="btn danger" onclick="deleteSection('${sec.id}')">Eliminar sección</button>
+      </div>
+      <div class="overflow-x"><table>
+        ${colgroup()}
+        <thead>${headerRow(sec)}</thead>
+        <tbody>${rows}
+          <tr class="addrow no-print"><td colspan="${2+data.numDias*3}">
+            <input type="text" id="np_${sec.id}" placeholder="Nuevo producto...">
+            <button class="btn" onclick="addProduct('${sec.id}')">+ Agregar producto</button>
+          </td></tr>
+        </tbody>
+      </table></div>`;
+    el.appendChild(div);
+  });
+  document.getElementById("lastInfo").textContent = data.lastCierre
+    ? "Kardex vigente desde: " + new Date(data.lastCierre).toLocaleString("es-PE")
+    : "Kardex inicial — aún no se ha cerrado ningún ciclo";
+}
+function upd(secId,prodId,idx,field,val){
+  const sec = data.sections.find(s=>s.id===secId); const p = sec.products.find(p=>p.id===prodId);
+  if(!p.dias[idx]) p.dias[idx] = {ingreso:0,salidas:0};
+  p.dias[idx][field] = val===""?0:Number(val);
+  save(); render();
+}
+function agregarDia(){
+  if(data.numDias>=MAX_DIAS) return;
+  data.numDias++;
+  data.sections.forEach(sec=>sec.products.forEach(p=>{ while(p.dias.length<data.numDias) p.dias.push({ingreso:0,salidas:0}); }));
+  save(); render();
+}
+function quitarDia(){
+  if(data.numDias<=0) return;
+  if(!confirm("¿Quitar el último día registrado?")) return;
+  data.numDias--;
+  data.sections.forEach(sec=>sec.products.forEach(p=>{ p.dias = p.dias.slice(0,data.numDias); }));
+  save(); render();
+}
+function cerrarKardex(){
+  if(!confirm("Esto guarda el stock final como nuevo stock inicial y empieza un kardex en blanco (como imprimir una hoja nueva). ¿Continuar?")) return;
+  data.sections.forEach(sec=>sec.products.forEach(p=>{ p.stockInicial = stockFinal(p); p.dias = []; }));
+  data.numDias = 0; data.lastCierre = new Date().toISOString();
+  save(); render();
+}
+function addProduct(secId){
+  const inp = document.getElementById("np_"+secId); const name = inp.value.trim(); if(!name) return;
+  const sec = data.sections.find(s=>s.id===secId);
+  sec.products.push({id:uid(), name, stockInicial:0, dias:Array.from({length:data.numDias},()=>({ingreso:0,salidas:0}))});
+  save(); render();
+}
+function deleteProduct(secId,prodId){
+  const sec = data.sections.find(s=>s.id===secId); sec.products = sec.products.filter(p=>p.id!==prodId); save(); render();
+}
+function addSection(){
+  const name = prompt("Nombre de la nueva sección:"); if(!name) return;
+  data.sections.push({id:uid(), name:name.trim().toUpperCase(), products:[]}); save(); render();
+}
+function deleteSection(secId){
+  if(!confirm("¿Eliminar esta sección y todos sus productos?")) return;
+  data.sections = data.sections.filter(s=>s.id!==secId); save(); render();
+}
+function resetAll(){
+  if(!confirm("Esto borra todo y vuelve a la lista original. ¿Continuar?")) return;
+  data = buildDefault(); save(); render();
+}
+render();
+</script>
+</body>
+</html>
