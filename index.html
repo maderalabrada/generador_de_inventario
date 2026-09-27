@@ -130,6 +130,7 @@ select{padding:6px 9px;border-radius:7px;border:1px solid #bbb;background:var(--
   </div>
 </div>
 
+<script id="stateData" type="application/json">null</script>
 <script>
 const DEFAULTS = {
   sections: [
@@ -144,6 +145,39 @@ const KEY = "kardexAlmacen_v2";
 let uidc = 1;
 const uid = ()=> "id"+(uidc++)+"_"+Math.random().toString(36).slice(2,7);
 
+// --- Estado compartido: se guarda embebido en la propia página al usar la capacidad "artifact" ---
+let artifactCap = null;
+let currentPrintTarget = 'ambos';
+let initializing = true;
+function readEmbeddedState(){
+  try{
+    const el = document.getElementById('stateData');
+    if(el && el.textContent.trim()){ const p = JSON.parse(el.textContent); if(p) return p; }
+  }catch(e){}
+  return null;
+}
+const EMBEDDED_STATE = readEmbeddedState();
+let publishTimer = null;
+function schedulePublish(){
+  if(!artifactCap || initializing) return;
+  if(publishTimer) clearTimeout(publishTimer);
+  publishTimer = setTimeout(publishState, 1200);
+}
+async function publishState(){
+  if(!artifactCap) return;
+  const stateEl = document.getElementById('stateData');
+  if(stateEl) stateEl.textContent = JSON.stringify({data, vdata, prefs, printTarget: currentPrintTarget});
+  try{
+    const html = "<!DOCTYPE html>\n"+document.documentElement.outerHTML;
+    await artifactCap.publish(html);
+  }catch(e){ console.error('No se pudo guardar el estado compartido', e); }
+}
+(async ()=>{
+  try{
+    if(window.claude && window.claude.use){ artifactCap = await window.claude.use('artifact'); }
+  }catch(e){ artifactCap = null; }
+})();
+
 const VDEFAULTS = {
   sections: [
     {name:"VITRINA", products:["Marshmellows","Gomitas","Pinguino","Wafer","Chocman Azul","Chocman Blanco","Trikis","Salticas","Trident","Invite","Reyenito","Mentas","Margarita","Morochas","Rellenitas","Soda V","Keke"]},
@@ -156,10 +190,11 @@ function vBuildDefault(){
   return { sections: VDEFAULTS.sections.map(s=>({id:uid(), name:s.name, products:s.products.map(p=>({id:uid(), name:p}))})) };
 }
 function vLoad(){
+  if(EMBEDDED_STATE && EMBEDDED_STATE.vdata && EMBEDDED_STATE.vdata.sections) return EMBEDDED_STATE.vdata;
   try{ const raw = localStorage.getItem(VKEY); if(raw){ const p=JSON.parse(raw); if(p.sections) return p; } }catch(e){}
   return vBuildDefault();
 }
-function vSave(){ try{ localStorage.setItem(VKEY, JSON.stringify(vdata)); }catch(e){} }
+function vSave(){ try{ localStorage.setItem(VKEY, JSON.stringify(vdata)); }catch(e){} schedulePublish(); }
 let vdata = vLoad();
 
 function vRenderEdit(){
@@ -211,23 +246,26 @@ function autoFitVitrina(){
   const grid = wrap.querySelector(".vgrid");
   if(!grid) return;
   const {w:pw, h:ph} = vitrinaPageDims();
-  const targetH = ph*0.98; // margen de seguridad para que nunca desborde a una 2da hoja
-  const GAP=8, PAD_BORDER=10;
-  const cardH = (ph-GAP)/2;
-  const {maxLines} = splitSections(vdata.sections);
-  const ROW_FACTOR = 1.3, TITLE_LINES = 1.4;
-  let fs = (cardH-PAD_BORDER)/((maxLines+TITLE_LINES)*ROW_FACTOR);
-  fs = Math.max(4, Math.min(30, fs));
-  document.documentElement.style.setProperty('--vfs', fs+'px');
+  const targetH = ph*0.88; // margen amplio: absorbe encabezados/pies que algunos navegadores agregan al imprimir
   const prevCss = wrap.getAttribute("style")||"";
   wrap.style.cssText = "position:fixed;left:-99999px;top:0;display:block;width:"+pw+"px;";
-  for(let i=0;i<6;i++){
+  const measureAt = (fs)=>{ document.documentElement.style.setProperty('--vfs', fs+'px'); return grid.scrollHeight; };
+  const fsA = 8, fsB = 24;
+  const hA = measureAt(fsA), hB = measureAt(fsB);
+  let fs;
+  if(hB===hA || hA<=0 || hB<=0){ fs = 10; }
+  else{
+    const slope = (hB-hA)/(fsB-fsA);
+    const intercept = hA - slope*fsA;
+    fs = (targetH - intercept)/slope;
+  }
+  fs = Math.max(4, Math.min(30, fs));
+  measureAt(fs);
+  for(let i=0;i<4;i++){
     const measured = grid.scrollHeight;
-    if(measured<=0) break;
-    const scale = targetH/measured;
-    if(scale>=1 && scale<1.03) break;
-    fs = Math.max(4, Math.min(30, fs*scale));
-    document.documentElement.style.setProperty('--vfs', fs+'px');
+    if(measured<=0 || measured<=targetH) break;
+    fs = Math.max(4, fs*0.96);
+    measureAt(fs);
   }
   wrap.setAttribute("style", prevCss);
 }
@@ -236,16 +274,19 @@ function setPageOrientation(v){
   document.getElementById('dynPage').textContent = '@page{size:A4 '+orientation+';margin:8mm;}';
 }
 function setPrintTarget(v){
+  currentPrintTarget = v;
   document.body.classList.remove('print-almacen','print-vitrina');
   if(v==='almacen') document.body.classList.add('print-almacen');
   else if(v==='vitrina') document.body.classList.add('print-vitrina');
   try{ localStorage.setItem('kardexPrintTarget', v); }catch(e){}
   setPageOrientation(v);
   autoFitVitrina();
+  schedulePublish();
 }
 function loadPrintTarget(){
-  let v='ambos';
-  try{ v = localStorage.getItem('kardexPrintTarget') || 'ambos'; }catch(e){}
+  let v = 'ambos';
+  if(EMBEDDED_STATE && EMBEDDED_STATE.printTarget) v = EMBEDDED_STATE.printTarget;
+  else{ try{ v = localStorage.getItem('kardexPrintTarget') || 'ambos'; }catch(e){} }
   document.getElementById('printTarget').value = v;
   setPrintTarget(v);
 }
@@ -285,6 +326,7 @@ function buildDefault(){
   };
 }
 function load(){
+  if(EMBEDDED_STATE && EMBEDDED_STATE.data && EMBEDDED_STATE.data.sections) return EMBEDDED_STATE.data;
   try{
     const raw = localStorage.getItem(KEY);
     if(!raw) return buildDefault();
@@ -294,12 +336,13 @@ function load(){
     return parsed;
   }catch(e){ return buildDefault(); }
 }
-function save(){ try{ localStorage.setItem(KEY, JSON.stringify(data)); }catch(e){ console.error(e); } }
+function save(){ try{ localStorage.setItem(KEY, JSON.stringify(data)); }catch(e){ console.error(e); } schedulePublish(); }
 let data = load();
 const n = v => isFinite(v)? v : 0;
 
 const PKEY = "kardexPrintPrefs_v1";
 function loadPrefs(){
+  if(EMBEDDED_STATE && EMBEDDED_STATE.prefs && EMBEDDED_STATE.prefs.pfs && EMBEDDED_STATE.prefs.pcolw) return EMBEDDED_STATE.prefs;
   try{ const raw = localStorage.getItem(PKEY); if(raw){ const p=JSON.parse(raw); if(p.pfs&&p.pcolw) return p; } }catch(e){}
   return {pfs:6, pcolw:46};
 }
@@ -314,6 +357,7 @@ function setPref(key,val){
   prefs[key] = Number(val);
   try{ localStorage.setItem(PKEY, JSON.stringify(prefs)); }catch(e){}
   applyPrefs();
+  schedulePublish();
 }
 
 function stockEnDia(p, idx){
@@ -424,6 +468,7 @@ applyPrefs();
 loadPrintTarget();
 render();
 vRenderEdit();
+initializing = false;
 </script>
 </body>
 </html>
